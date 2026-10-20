@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zeiterfassung</title>
+<style>
+:root{--bg:#f4f5f7;--fg:#1c1f24;--card:#fff;--ac:#1f5fbf;--ok:#1b7a3a;--err:#b3261e}
+@media(prefers-color-scheme:dark){:root{--bg:#15171a;--fg:#eceef1;--card:#22262b;--ac:#6ea2f0;--ok:#5fcf86;--err:#ff8a80}}
+body{font:20px system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0;padding:16px}
+main{max-width:560px;margin:auto}.k{background:var(--card);border-radius:14px;padding:16px;margin-bottom:14px}
+label{display:block;margin:10px 0 4px;font-size:16px}input,select{width:100%;box-sizing:border-box;font:inherit;padding:12px;border-radius:10px;border:1px solid #8888}
+button{font:inherit;padding:14px 18px;border:0;border-radius:10px;background:var(--ac);color:#fff;margin:8px 6px 0 0}button.s{background:#8885;color:var(--fg)}
+#info{font-size:24px;font-weight:600;margin:12px 0}#msg{min-height:1.4em}.ok{color:var(--ok)}.err{color:var(--err)}
+.z{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #8883;font-size:17px}.hid{display:none}
+</style></head><body><main>
+<h1>Zeiterfassung</h1>
+<div class="k" id="login"><label>Name</label><select id="ma"></select><div id="startmsg" class="err"></div><button id="neuladen" class="s hid" onclick="start()">Namensliste neu laden</button><label>PIN</label><input id="pin" type="password" inputmode="numeric" autocomplete="off"><button onclick="anmelden()">Anmelden</button></div>
+<div class="hid" id="app">
+ <div class="k"><b id="wer"></b> <button class="s" onclick="location.reload()">Abmelden</button></div>
+ <div class="k"><label>Datum</label><input id="datum" type="date" oninput="rechne()">
+  <label>Arbeitsbeginn</label><input id="beginn" type="time" oninput="rechne()">
+  <label>Arbeitsende</label><input id="ende" type="time" oninput="rechne()">
+  <label>Pause (Minuten)</label><input id="pause" type="number" min="0" step="5" value="30" inputmode="numeric" oninput="rechne()">
+  <div><button class="s" onclick="p(0)">0</button><button class="s" onclick="p(30)">30</button><button class="s" onclick="p(45)">45</button><button class="s" onclick="p(60)">60</button></div>
+  <div id="info"></div><button id="senden" onclick="senden()">Absenden</button><button class="s hid" id="abbr" onclick="neu()">Abbrechen</button><div id="msg"></div></div>
+ <div class="k"><b>Meine letzten Einträge</b><div id="liste"></div></div>
+</div></main>
+<script>
+const GATEWAY = 'HIER_WEB-APP-URL_EINTRAGEN'; // öffentliche URL, kein Geheimnis
+const $ = i => document.getElementById(i); let au = null, edit = null, eintraege = [];
+const heute = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+const hm = m => Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0');
+const mm = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+function meld(t, k) { $('msg').textContent = t; $('msg').className = k || ''; }
+async function api(op, d = {}) {
+  try { const r = await fetch(GATEWAY, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ op, ...au, ...d }) }); return await r.json(); }
+  catch (e) { return { ok: false, fehler: 'Keine Verbindung – NICHT gespeichert. Bitte erneut versuchen.', detail: String(e) }; }
+}
+async function start() {
+  $('startmsg').textContent = 'Namensliste wird geladen …'; $('neuladen').classList.add('hid');
+  const r = await api('ma_namen'), l = r.mitarbeiter || [];
+  $('ma').innerHTML = l.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  $('startmsg').textContent = !r.ok ? 'Namensliste konnte nicht geladen werden: ' + (r.detail || r.fehler) : l.length ? '' : 'Es sind noch keine aktiven Mitarbeiter angelegt.';
+  if (!r.ok || !l.length) $('neuladen').classList.remove('hid');
+}
+async function anmelden() {
+  au = { ma_id: $('ma').value, pin: $('pin').value }; const r = await api('zeit_meine');
+  if (!r.ok) { au = null; return alert(r.fehler); }
+  $('login').classList.add('hid'); $('app').classList.remove('hid'); $('wer').textContent = $('ma').selectedOptions[0].text; eintraege = r.eintraege; neu(); zeige();
+}
+function p(v) { $('pause').value = v; rechne(); }
+function rechne() {
+  const b = $('beginn').value, e = $('ende').value, pa = +$('pause').value; if (!b || !e) return $('info').textContent = '';
+  const m = mm(e) - mm(b) - pa; $('info').textContent = m > 0 ? 'Arbeitszeit: ' + hm(m) + ' h' : 'Bitte Eingaben prüfen';
+}
+function neu() { edit = null; $('datum').value = heute(); $('datum').disabled = false; $('beginn').value = ''; $('ende').value = ''; p(30); $('senden').textContent = 'Absenden'; $('abbr').classList.add('hid'); }
+function aendern(i) {
+  edit = eintraege[i]; $('datum').value = edit.datum; $('datum').disabled = true; $('beginn').value = edit.beginn; $('ende').value = edit.ende; p(edit.pause_min);
+  $('senden').textContent = 'Korrektur speichern'; $('abbr').classList.remove('hid'); scrollTo(0, 0);
+}
+async function senden() {
+  const d = { beginn: $('beginn').value, ende: $('ende').value, pause_min: $('pause').value };
+  if (!d.beginn || !d.ende) return meld('Bitte Beginn und Ende eintragen.', 'err');
+  $('senden').disabled = true; meld('Wird gespeichert …');
+  const r = edit ? await api('zeit_aendern', { id: edit.id, version: edit.version, ...d }) : await api('zeit_einreichen', { datum: $('datum').value, ...d });
+  $('senden').disabled = false;
+  if (r.ok) { meld('✓ Gespeichert' + (r.warnung ? ' – Hinweis: ' + r.warnung : ''), 'ok'); neu(); return aktualisieren(); }
+  if (r.fehler === 'duplikat') {
+    const v = r.vorhanden;
+    if (v.beginn === d.beginn && v.ende === d.ende && v.pause_min == d.pause_min) { meld('✓ Bereits gespeichert', 'ok'); neu(); return aktualisieren(); }
+    meld('Für diesen Tag gibt es schon einen Eintrag. Er wurde zum Korrigieren geladen.', 'err'); await aktualisieren(); return aendern(eintraege.findIndex(x => x.id === v.id));
+  }
+  if (r.fehler === 'konflikt') { meld('Der Eintrag wurde zwischenzeitlich geändert. Bitte erneut öffnen.', 'err'); neu(); return aktualisieren(); }
+  meld(r.fehler, 'err');
+}
+async function aktualisieren() { const r = await api('zeit_meine'); if (r.ok) { eintraege = r.eintraege; zeige(); } }
+function zeige() {
+  $('liste').innerHTML = eintraege.map((e, i) => `<div class="z"><span>${e.datum.slice(8)}.${e.datum.slice(5, 7)}. ${e.beginn}–${e.ende} (${hm(e.ist_minuten)} h)<br><small>${e.status}</small></span>${e.status === 'freigegeben' ? '' : `<button class="s" onclick="aendern(${i})">Ändern</button>`}</div>`).join('') || '<p>Noch keine Einträge.</p>';
+}
+start();
+</script></body></html>
