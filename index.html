@@ -12,7 +12,7 @@ button{font:inherit;padding:14px 18px;border:0;border-radius:10px;background:var
 .z{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #8883;font-size:17px}.hid{display:none}
 </style></head><body><main>
 <h1>Zeiterfassung</h1>
-<div class="k" id="login"><label>Name</label><select id="ma"></select><div id="startmsg" class="err"></div><button id="neuladen" class="s hid" onclick="start()">Namensliste neu laden</button><label>PIN</label><input id="pin" type="password" inputmode="numeric" autocomplete="off"><button onclick="anmelden()">Anmelden</button></div>
+<div class="k" id="login"><label>Name</label><select id="ma"></select><label>PIN</label><input id="pin" type="password" inputmode="numeric" autocomplete="off"><button onclick="anmelden()">Anmelden</button></div>
 <div class="hid" id="app">
  <div class="k"><b id="wer"></b> <button class="s" onclick="location.reload()">Abmelden</button></div>
  <div class="k"><label>Datum</label><input id="datum" type="date" oninput="rechne()">
@@ -32,15 +32,9 @@ const mm = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 function meld(t, k) { $('msg').textContent = t; $('msg').className = k || ''; }
 async function api(op, d = {}) {
   try { const r = await fetch(GATEWAY, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ op, ...au, ...d }) }); return await r.json(); }
-  catch (e) { return { ok: false, fehler: 'Keine Verbindung – NICHT gespeichert. Bitte erneut versuchen.', detail: String(e) }; }
+  catch (e) { return { ok: false, fehler: 'Keine Verbindung – NICHT gespeichert. Bitte erneut versuchen.' }; }
 }
-async function start() {
-  $('startmsg').textContent = 'Namensliste wird geladen …'; $('neuladen').classList.add('hid');
-  const r = await api('ma_namen'), l = r.mitarbeiter || [];
-  $('ma').innerHTML = l.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
-  $('startmsg').textContent = !r.ok ? 'Namensliste konnte nicht geladen werden: ' + (r.detail || r.fehler) : l.length ? '' : 'Es sind noch keine aktiven Mitarbeiter angelegt.';
-  if (!r.ok || !l.length) $('neuladen').classList.remove('hid');
-}
+async function start() { const r = await api('ma_namen'); $('ma').innerHTML = (r.mitarbeiter || []).map(m => `<option value="${m.id}">${m.name}</option>`).join(''); }
 async function anmelden() {
   au = { ma_id: $('ma').value, pin: $('pin').value }; const r = await api('zeit_meine');
   if (!r.ok) { au = null; return alert(r.fehler); }
