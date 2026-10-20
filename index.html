@@ -24,7 +24,7 @@ button{font:inherit;padding:14px 18px;border:0;border-radius:10px;background:var
  <div class="k"><b>Meine letzten Einträge</b><div id="liste"></div></div>
 </div></main>
 <script>
-const GATEWAY = 'HIER_WEB-APP-URL_EINTRAGEN'; // öffentliche URL, kein Geheimnis
+const GATEWAY = 'https://script.google.com/macros/s/AKfycbztWiF64W6QkljXNA_H5xN9LfgnB_UyOC219owOdw5XU3h9HaQ4IbmsshB1pVO9gRFo/exec'; // öffentliche URL, kein Geheimnis
 const $ = i => document.getElementById(i); let au = null, edit = null, eintraege = [];
 const heute = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 const hm = m => Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0');
